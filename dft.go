@@ -30,7 +30,7 @@ func note2str(note int) string {
 		return "??"
 	}
 	note -= 40
-	oct := note/12 + 2
+	oct := (note+4)/12 + 2
 	note %= 12
 	strtbl := []string{"E", "F", "F#", "G", "G#", "A", "A#", "B", "C", "C#",
 		"D", "D#"}
@@ -43,7 +43,7 @@ func dft(wav []float64, smplfreq float64) []float64 {
 	for i := 0; i < smpls; i++ {
 		wav[i] *= 0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(smpls))
 	}
-	for i := 14; i < 256; i++ {
+	for i := 0; i < smpls/8; i++ {
 		freq := float64(i) * smplfreq / float64(smpls)
 		if freq2note(freq) == -1 {
 			continue
@@ -86,19 +86,23 @@ func main() {
 	fn := flag.String("f", "", "filename (.s16)")
 	flag.Parse()
 	smplfreq := 44100.0
-	smpls := 1024 * 8
+	smpls := 1024 * 32
 	wav, _ := readwav(smpls, *fn)
 	spct := dft(wav, smplfreq)
 	for i, v := range spct {
 		if i == smpls/8 {
 			break
 		}
-		if v > 0.001 {
+		if v > 0.0002 {
 			freq := float64(i) * smplfreq / float64(smpls)
 			note := freq2note(freq)
 			db := 20 * math.Log10(v)
-			fmt.Printf("%4d %7.1f Hz %2d %4s %8.6f %6.2f dB\n", i, freq, note,
+			fmt.Printf("%4d %7.1f Hz %2d %4s %8.6f %6.2f dB", i, freq, note,
 				note2str(note), v, db)
+			for j := 0; j < 50+int(db); j++ {
+				fmt.Print("*")
+			}
+			fmt.Printf("\n")
 		}
 	}
 }
