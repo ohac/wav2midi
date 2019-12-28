@@ -82,6 +82,36 @@ func readwav(smpls int, fn string) ([]float64, error) {
 	return wav, nil
 }
 
+func eq(freq float64) float64 {
+	if freq < 87 {
+		return 15.0
+	} else if freq < 95 {
+		return 5.0
+	} else if freq < 150 {
+		return 10.0
+	} else if freq < 200 {
+		return 1.0
+	} else if freq < 300 {
+		return 1.0
+	} else if freq < 400 {
+		return 1.0
+	} else if freq < 500 {
+		return 10.0
+	} else if freq < 600 {
+		return 10.0
+	} else if freq < 700 {
+		return 10.0
+	} else if freq < 800 {
+		return 10.0
+	} else if freq < 900 {
+		return 10.0
+	} else if freq < 1000 {
+		return 10.0
+	} else {
+		return 20.0
+	}
+}
+
 func main() {
 	fn := flag.String("f", "", "filename (.s16)")
 	flag.Parse()
@@ -96,13 +126,16 @@ func main() {
 		if v > 0.0002 {
 			freq := float64(i) * smplfreq / float64(smpls)
 			note := freq2note(freq)
+			v *= eq(freq)
 			db := 20 * math.Log10(v)
-			fmt.Printf("%4d %7.1f Hz %2d %4s %8.6f %6.2f dB", i, freq, note,
-				note2str(note), v, db)
-			for j := 0; j < 50+int(db); j++ {
-				fmt.Print("*")
+			if db > -50 {
+				fmt.Printf("%4d %7.1f Hz %2d %4s %8.6f %6.2f dB ", i, freq, note,
+					note2str(note), v, db)
+				for j := 0; j < (60+int(db))/2; j++ {
+					fmt.Print("*")
+				}
+				fmt.Printf("\n")
 			}
-			fmt.Printf("\n")
 		}
 	}
 }
