@@ -63,9 +63,9 @@ func readwav(fp io.Reader, wavi []byte, wav []float64) error {
 func eq(i int) float64 {
 	switch {
 	case i == 0:
-		return 20.0
+		return 75.0
 	case i == 1:
-		return 70.0
+		return 50.0
 	case i == 2:
 		return 30.0
 	case i == 3:
@@ -73,7 +73,7 @@ func eq(i int) float64 {
 	case i == 4:
 		return 10.0
 	case i == 5:
-		return 10
+		return 15
 	case i == 6:
 		return 10
 	case i == 7:
@@ -85,33 +85,37 @@ func eq(i int) float64 {
 	case i == 10:
 		return 18.0
 	case i == 11:
-		return 5.0
+		return 4.0
 	case i == 12:
-		return 12.0
+		return 8.0
 	case i == 13:
-		return 3
+		return 6
 	case i == 14:
 		return 2
 	case i == 15:
-		return 3.2
+		return 8
 	case i == 16:
-		return 2.0
+		return 6.0
 	case i == 17:
-		return 2.4
+		return 10
 	case i == 18:
-		return 2.6
+		return 4
 	case i == 19:
-		return 2.2
+		return 3
+	case i == 20:
+		return 4
 	case i == 21:
+		return 0.9
+	case i == 24:
 		return 0.9
 	case i == 28:
 		return 1.5
 	case i == 31:
-		return 1.5
+		return 4
+	case i == 32:
+		return 20
 	case i == 35:
-		return 3.0
-	case i < 12+12:
-		return 1.2
+		return 6.0
 	default:
 		return 1.0
 	}
@@ -121,7 +125,7 @@ func reduceharm(spct []float64, i int) {
 	for _, j := range []int{12, 12 + 7, 12 + 12, 12 + 12 + 7} {
 		k := i + j
 		if k < len(spct) {
-			spct[k] -= spct[i] * 1.5
+			spct[k] -= spct[i] * 3.5
 			if spct[k] < 0 {
 				spct[k] = 0
 			}
@@ -143,16 +147,23 @@ func reducenear(spct []float64, i int) {
 }
 
 func sub(wav []float64, t int) error {
-	spct := dft(wav)
+	wav2 := make([]float64, smpls)
+	for i := 0; i < smpls; i++ {
+		wav2[i] = wav[i]
+		wav2[i] *= 0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(smpls))
+	}
+	spct := dft(wav2)
 	for i, v := range spct {
 		v *= eq(i)
 		spct[i] = v
+	}
+	for i := range spct {
 		reduceharm(spct, i)
 		reducenear(spct, i)
 	}
 	for i, v := range spct {
 		db := 20 * math.Log10(v)
-		if db > -38 {
+		if db > -47 {
 			note := 40 + i
 			fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
 				note, note2str(note), v, db)
