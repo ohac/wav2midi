@@ -61,11 +61,58 @@ func readwav(fp io.Reader, wavi []byte, wav []float64) error {
 }
 
 func eq(i int) float64 {
-	if i <= 2 {
+	switch {
+	case i == 0:
 		return 20.0
-	} else if i <= 12 {
+	case i == 1:
+		return 70.0
+	case i == 2:
+		return 30.0
+	case i == 3:
+		return 18.0
+	case i == 4:
+		return 10.0
+	case i == 5:
+		return 10
+	case i == 6:
+		return 10
+	case i == 7:
+		return 10
+	case i == 8:
+		return 16.0
+	case i == 9:
+		return 15.0
+	case i == 10:
+		return 18.0
+	case i == 11:
+		return 5.0
+	case i == 12:
+		return 12.0
+	case i == 13:
+		return 3
+	case i == 14:
+		return 2
+	case i == 15:
+		return 3.2
+	case i == 16:
+		return 2.0
+	case i == 17:
+		return 2.4
+	case i == 18:
+		return 2.6
+	case i == 19:
+		return 2.2
+	case i == 21:
+		return 0.9
+	case i == 28:
+		return 1.5
+	case i == 31:
+		return 1.5
+	case i == 35:
+		return 3.0
+	case i < 12+12:
 		return 1.2
-	} else {
+	default:
 		return 1.0
 	}
 }
@@ -74,7 +121,20 @@ func reduceharm(spct []float64, i int) {
 	for _, j := range []int{12, 12 + 7, 12 + 12, 12 + 12 + 7} {
 		k := i + j
 		if k < len(spct) {
-			spct[k] -= spct[i] * 1.0
+			spct[k] -= spct[i] * 1.5
+			if spct[k] < 0 {
+				spct[k] = 0
+			}
+		}
+	}
+}
+
+func reducenear(spct []float64, i int) {
+	gain := []float64{0.03, 0.05, 0.1, 0.2, 0.3, 0.3, 0.2, 0.1, 0.05, 0.03}
+	for x, j := range []int{-5, -4, -3, -2, -1, 1, 2, 3, 4, 5} {
+		k := i + j
+		if k >= 0 && k < len(spct) && spct[k] < spct[i] {
+			spct[k] -= spct[i] * gain[x]
 			if spct[k] < 0 {
 				spct[k] = 0
 			}
@@ -86,13 +146,16 @@ func sub(wav []float64, t int) error {
 	spct := dft(wav)
 	for i, v := range spct {
 		v *= eq(i)
+		spct[i] = v
 		reduceharm(spct, i)
+		reducenear(spct, i)
 	}
 	for i, v := range spct {
 		db := 20 * math.Log10(v)
-		if db > -47 {
+		if db > -38 {
 			note := 40 + i
-			fmt.Printf("%2d %2d %4s %8.6f %6.2f dB ", t, note, note2str(note), v, db)
+			fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
+				note, note2str(note), v, db)
 			for j := 0; j < (60+int(db))/2; j++ {
 				fmt.Print("*")
 			}
