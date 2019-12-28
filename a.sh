@@ -16,6 +16,6 @@ for name in $l6 $l5 $l4 $l3 $l2 $l1; do
     sox $dir/pepe_$name.flac $name.s16
   fi
   echo $name
-  ./midiguitar -f $name.s16
+  ./wav2midi -f $name.s16
   echo
 done
