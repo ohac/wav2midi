@@ -150,25 +150,52 @@ func reducenear(spct []float64, i int) {
 	}
 }
 
-func sub(wav []float64, t int, wr smf.Writer) error {
+func guitar(spct []float64) {
+	max := 0.0
+	maxi := 0
+	for i := 0; i < 5; i++ {
+		v := spct[i]
+		if v > max {
+			max = v
+			maxi = i
+		}
+	}
+	for i := 0; i < 5; i++ {
+		if i != maxi {
+			spct[i] = 0
+		}
+	}
+	for i := range spct[1:] {
+		if spct[i] < spct[i+1] {
+			spct[i] = 0
+		}
+	}
+}
+
+func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
+	delta uint32) uint32 {
 	wav2 := make([]float64, smpls)
 	for i := 0; i < smpls; i++ {
 		wav2[i] = wav[i]
 		wav2[i] *= 0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(smpls))
 	}
 	spct := dft(wav2)
-	for i, v := range spct {
-		v *= eq(i)
-		spct[i] = v
-	}
+	/*
+		for i, v := range spct {
+			v *= eq(i)
+			spct[i] = v
+		}
+	*/
 	for i := range spct {
 		reduceharm(spct, i)
 		reducenear(spct, i)
 	}
+	guitar(spct)
 	noteon := make([]bool, 128)
+	vels := make([]uint8, 128)
 	for i, v := range spct {
 		db := 20 * math.Log10(v)
-		if db > -40 {
+		if db > -50 {
 			note := 40 + i
 			fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
 				note, note2str(note), v, db)
@@ -183,17 +210,23 @@ func sub(wav []float64, t int, wr smf.Writer) error {
 			if vel > 127 {
 				vel = 127
 			}
-			wr.Write(channel.Channel0.NoteOn(uint8(note), uint8(vel)))
 			noteon[note] = true
+			vels[note] = uint8(vel)
 		}
 	}
-	wr.SetDelta(480)
 	for i, v := range noteon {
-		if v {
-			wr.Write(channel.Channel0.NoteOff(uint8(i)))
+		if lastnoteon[i] != v {
+			wr.SetDelta(delta)
+			delta = 0
+			if v {
+				wr.Write(channel.Channel0.NoteOn(uint8(i), vels[i]))
+			} else {
+				wr.Write(channel.Channel0.NoteOff(uint8(i)))
+			}
 		}
+		lastnoteon[i] = v
 	}
-	return nil
+	return delta
 }
 
 func main() {
@@ -215,7 +248,10 @@ func main() {
 	wr := smfwriter.New(smffp)
 	wavi := make([]byte, smpls*2)
 	wav := make([]float64, smpls)
-	shift := 1024
+	shift := 1024 * 4
+	noteon := make([]bool, 128)
+	delta := uint32(0)
+	delta2 := uint32(float64(shift) / smplfreq * 1920)
 	for i := 0; ; i++ {
 		var err error
 		if i == 0 {
@@ -227,7 +263,7 @@ func main() {
 		if err != nil {
 			break
 		}
-		sub(wav, i, wr)
+		delta = sub(wav, i, wr, noteon, delta+delta2)
 	}
 	wr.Write(meta.EndOfTrack)
 }
