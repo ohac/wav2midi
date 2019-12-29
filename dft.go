@@ -28,8 +28,8 @@ func note2str(note int) string {
 
 var basehz = 440.0 / 8 // 55hz
 var tw = 1.05946309    // 12sqrt(2)
-var imin = 7
-var imax = 7 + 12*4 + 1
+var imin = 7           // E2
+var imax = 7 + 12*6
 var smplfreq = 44100.0
 var smpls = 1024 * 8
 
@@ -49,7 +49,7 @@ func dft(wav []float64) []float64 {
 	return spct
 }
 
-func readwav(fp io.Reader, wavi []byte, wav []float64) error {
+func readwav(fp io.Reader, wavi []byte, wav []float64, gain float64) error {
 	n, err := io.ReadFull(fp, wavi)
 	if err != nil {
 		return err
@@ -60,6 +60,7 @@ func readwav(fp io.Reader, wavi []byte, wav []float64) error {
 	for i := range wav {
 		wav[i] = float64(int16(wavi[i*2]) | (int16(wavi[i*2+1]) << 8))
 		wav[i] /= 32768.0
+		wav[i] *= gain
 	}
 	return nil
 }
@@ -126,10 +127,12 @@ func eq(i int) float64 {
 }
 
 func reduceharm(spct []float64, i int) {
-	for _, j := range []int{12, 12 + 7, 12 + 12, 12 + 12 + 7} {
+	muls := []float64{1.2, 0.8, 0.5, 0.4, 0.3, 0.2}
+	for x, j := range []int{12, 12 + 7, 12 + 12, 12 + 12 + 4, 12 + 12 + 7,
+		12 * 3} {
 		k := i + j
 		if k < len(spct) {
-			spct[k] -= spct[i] * 3.5
+			spct[k] -= spct[i] * muls[x]
 			if spct[k] < 0 {
 				spct[k] = 0
 			}
@@ -138,7 +141,7 @@ func reduceharm(spct []float64, i int) {
 }
 
 func reducenear(spct []float64, i int) {
-	gain := []float64{0.03, 0.05, 0.1, 0.2, 0.3, 0.3, 0.2, 0.1, 0.05, 0.03}
+	gain := []float64{0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.2, 0.1, 0.05, 0.03}
 	for x, j := range []int{-5, -4, -3, -2, -1, 1, 2, 3, 4, 5} {
 		k := i + j
 		if k >= 0 && k < len(spct) && spct[k] < spct[i] {
@@ -187,31 +190,61 @@ func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
 		}
 	*/
 	for i := range spct {
-		reduceharm(spct, i)
 		reducenear(spct, i)
 	}
 	guitar(spct)
 	noteon := make([]bool, 128)
 	vels := make([]uint8, 128)
-	for i, v := range spct {
+	for i := 0; i < imax-imin-(12*2+7); i++ {
+		v := spct[i]
+		x1 := spct[i+7]
+		x2 := spct[i+12]
+		x3 := spct[i+12+7]
+		x4 := spct[i+12*2]
+		x5 := spct[i+12*2+7]
+		reduceharm(spct, i)
 		db := 20 * math.Log10(v)
-		if db > -50 {
+		if db > -53 {
+			x1 /= v
+			x2 /= v
+			x3 /= v
+			x4 /= v
+			x5 /= v
 			note := 40 + i
-			fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
-				note, note2str(note), v, db)
-			for j := 0; j < (60+int(db))/2; j++ {
-				fmt.Print("*")
+			judge := false
+			if i <= 12 {
+				judge = x1 < 0.08 && x2 > 0.0005 && x3 > 0.005
+			} else if i <= 24 {
+				judge = /*x1 < 0.20 &&*/ (x2 > 0.00001 || x3 > 0.00001)
+			} else if i <= 36 {
+				judge = /*x1 < 0.30 &&*/ (x2 > 0.000006 || x3 > 0.000006)
+			} else {
+				judge = /*x1 < 0.40 &&*/ (x2 > 0.000005 || x3 > 0.000005)
 			}
-			fmt.Printf("\n")
-			vel := db*2 + 192
-			if vel < 1 {
-				vel = 1
+			j2 := false
+			//j2 = note == 69 || note == 67
+			//j2 = note == 74
+			if j2 || judge {
+				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB"+
+					" %5.3f %5.3f %5.3f %5.3f %5.3f %v\n",
+					t, i, note, note2str(note), v, db, x1, x2, x3, x4, x5, judge)
+				/*
+				   fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
+				     note, note2str(note), v, db)
+				   for j := 0; j < (60+int(db))/2; j++ {
+				     fmt.Print("*")
+				   }
+				   fmt.Printf("\n")
+				*/
+				vel := db*3.0 + 184
+				if vel > 0 {
+					if vel > 127 {
+						vel = 127
+					}
+					noteon[note] = true
+					vels[note] = uint8(vel)
+				}
 			}
-			if vel > 127 {
-				vel = 127
-			}
-			noteon[note] = true
-			vels[note] = uint8(vel)
 		}
 	}
 	for i, v := range noteon {
@@ -231,15 +264,22 @@ func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
 
 func main() {
 	fn := flag.String("f", "", "filename (.s16)")
-	smf := flag.String("m", "output.mid", "filename (.mid)")
+	smfp := flag.String("m", "", "filename (.mid)")
+	gain := flag.Float64("g", 1.0, "gain")
+	smplfreqp := flag.Int("s", 44100, "sampling freq")
 	flag.Parse()
+	smplfreq = float64(*smplfreqp)
+	smf := *smfp
+	if smf == "" {
+		smf = *fn + ".mid"
+	}
 	fp, err := os.Open(*fn)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer fp.Close()
-	smffp, err := os.Create(*smf)
+	smffp, err := os.Create(smf)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -251,14 +291,14 @@ func main() {
 	shift := 1024 * 4
 	noteon := make([]bool, 128)
 	delta := uint32(0)
-	delta2 := uint32(float64(shift) / smplfreq * 1920)
+	delta2 := uint32(float64(shift) / smplfreq * 480 * 4)
 	for i := 0; ; i++ {
 		var err error
 		if i == 0 {
-			err = readwav(fp, wavi, wav)
+			err = readwav(fp, wavi, wav, *gain)
 		} else {
 			copy(wav[:smpls-shift], wav[shift:])
-			err = readwav(fp, wavi[:shift*2], wav[smpls-shift:])
+			err = readwav(fp, wavi[:shift*2], wav[smpls-shift:], *gain)
 		}
 		if err != nil {
 			break
