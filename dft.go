@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/midimessage/meta"
-	"gitlab.com/gomidi/midi/smf"
 	"gitlab.com/gomidi/midi/smf/smfwriter"
 	"io"
 	"math"
@@ -156,6 +155,8 @@ func reducenear(spct []float64, i int) {
 func guitar(spct []float64) {
 	max := 0.0
 	maxi := 0
+
+	// string 6: 0-4fret
 	for i := 0; i < 5; i++ {
 		v := spct[i]
 		if v > max {
@@ -168,6 +169,21 @@ func guitar(spct []float64) {
 			spct[i] = 0
 		}
 	}
+
+	// string 1: 18-23fret
+	for i := 24 + 18; i < 24+24; i++ {
+		v := spct[i]
+		if v > max {
+			max = v
+			maxi = i
+		}
+	}
+	for i := 0; i < 5; i++ {
+		if i != maxi {
+			spct[i] = 0
+		}
+	}
+
 	for i := range spct[1:] {
 		if spct[i] < spct[i+1] {
 			spct[i] = 0
@@ -175,8 +191,7 @@ func guitar(spct []float64) {
 	}
 }
 
-func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
-	delta uint32) uint32 {
+func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 	wav2 := make([]float64, smpls)
 	for i := 0; i < smpls; i++ {
 		wav2[i] = wav[i]
@@ -200,34 +215,29 @@ func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
 		x1 := spct[i+7]
 		x2 := spct[i+12]
 		x3 := spct[i+12+7]
-		x4 := spct[i+12*2]
-		x5 := spct[i+12*2+7]
 		reduceharm(spct, i)
 		db := 20 * math.Log10(v)
 		if db > -53 {
 			x1 /= v
 			x2 /= v
 			x3 /= v
-			x4 /= v
-			x5 /= v
 			note := 40 + i
 			judge := false
 			if i <= 12 {
 				judge = x1 < 0.08 && x2 > 0.0005 && x3 > 0.005
 			} else if i <= 24 {
-				judge = /*x1 < 0.20 &&*/ (x2 > 0.00001 || x3 > 0.00001)
+				judge = x2 > 0.00001 || x3 > 0.00001
 			} else if i <= 36 {
-				judge = /*x1 < 0.30 &&*/ (x2 > 0.000006 || x3 > 0.000006)
+				judge = x2 > 0.000006 || x3 > 0.000006
 			} else {
-				judge = /*x1 < 0.40 &&*/ (x2 > 0.000005 || x3 > 0.000005)
+				judge = x2 > 0.000005 || x3 > 0.000005
 			}
 			j2 := false
 			//j2 = note == 69 || note == 67
 			//j2 = note == 74
 			if j2 || judge {
-				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB"+
-					" %5.3f %5.3f %5.3f %5.3f %5.3f %v\n",
-					t, i, note, note2str(note), v, db, x1, x2, x3, x4, x5, judge)
+				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB %5.3f %5.3f %5.3f\n",
+					t, i, note, note2str(note), v, db, x1, x2, x3)
 				/*
 				   fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
 				     note, note2str(note), v, db)
@@ -247,19 +257,21 @@ func sub(wav []float64, t int, wr smf.Writer, lastnoteon []bool,
 			}
 		}
 	}
-	for i, v := range noteon {
-		if lastnoteon[i] != v {
-			wr.SetDelta(delta)
-			delta = 0
-			if v {
-				wr.Write(channel.Channel0.NoteOn(uint8(i), vels[i]))
-			} else {
-				wr.Write(channel.Channel0.NoteOff(uint8(i)))
+	/*
+		for i, v := range noteon {
+			if lastnoteon[i] != v {
+				wr.SetDelta(delta)
+				delta = 0
+				if v {
+					wr.Write(channel.Channel0.NoteOn(uint8(i), vels[i]))
+				} else {
+					wr.Write(channel.Channel0.NoteOff(uint8(i)))
+				}
 			}
+			lastnoteon[i] = v
 		}
-		lastnoteon[i] = v
-	}
-	return delta
+	*/
+	return delta, noteon, vels
 }
 
 func main() {
@@ -289,7 +301,10 @@ func main() {
 	wavi := make([]byte, smpls*2)
 	wav := make([]float64, smpls)
 	shift := 1024 * 4
-	noteon := make([]bool, 128)
+	lastnoteon2 := make([]bool, 128)
+	lastnoteon := make([]bool, 128)
+	var noteon []bool
+	var vels, lastvels []uint8
 	delta := uint32(0)
 	delta2 := uint32(float64(shift) / smplfreq * 480 * 4)
 	for i := 0; ; i++ {
@@ -303,7 +318,29 @@ func main() {
 		if err != nil {
 			break
 		}
-		delta = sub(wav, i, wr, noteon, delta+delta2)
+		delta, noteon, vels = sub(wav, i, delta+delta2)
+		for i, v := range lastnoteon {
+			if v {
+				if lastnoteon2[i] != v && v == noteon[i] {
+					if delta > 0 {
+						wr.SetDelta(delta)
+						delta = 0
+					}
+					wr.Write(channel.Channel0.NoteOn(uint8(i), lastvels[i]))
+				}
+			} else {
+				if lastnoteon2[i] != v {
+					if delta > 0 {
+						wr.SetDelta(delta)
+						delta = 0
+					}
+					wr.Write(channel.Channel0.NoteOff(uint8(i)))
+				}
+			}
+		}
+		lastnoteon2 = lastnoteon
+		lastnoteon = noteon
+		lastvels = vels
 	}
 	wr.Write(meta.EndOfTrack)
 }
