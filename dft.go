@@ -4,6 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"gitlab.com/gomidi/midi/midimessage/channel"
+	"gitlab.com/gomidi/midi/midimessage/meta"
+	"gitlab.com/gomidi/midi/smf"
+	"gitlab.com/gomidi/midi/smf/smfwriter"
 	"io"
 	"math"
 	"os"
@@ -27,7 +31,7 @@ var tw = 1.05946309    // 12sqrt(2)
 var imin = 7
 var imax = 7 + 12*4 + 1
 var smplfreq = 44100.0
-var smpls = 1024 * 32
+var smpls = 1024 * 8
 
 func dft(wav []float64) []float64 {
 	spct := make([]float64, imax-imin)
@@ -146,7 +150,7 @@ func reducenear(spct []float64, i int) {
 	}
 }
 
-func sub(wav []float64, t int) error {
+func sub(wav []float64, t int, wr smf.Writer) error {
 	wav2 := make([]float64, smpls)
 	for i := 0; i < smpls; i++ {
 		wav2[i] = wav[i]
@@ -161,9 +165,10 @@ func sub(wav []float64, t int) error {
 		reduceharm(spct, i)
 		reducenear(spct, i)
 	}
+	noteon := make([]bool, 128)
 	for i, v := range spct {
 		db := 20 * math.Log10(v)
-		if db > -47 {
+		if db > -40 {
 			note := 40 + i
 			fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
 				note, note2str(note), v, db)
@@ -171,6 +176,21 @@ func sub(wav []float64, t int) error {
 				fmt.Print("*")
 			}
 			fmt.Printf("\n")
+			vel := db*2 + 192
+			if vel < 1 {
+				vel = 1
+			}
+			if vel > 127 {
+				vel = 127
+			}
+			wr.Write(channel.Channel0.NoteOn(uint8(note), uint8(vel)))
+			noteon[note] = true
+		}
+	}
+	wr.SetDelta(480)
+	for i, v := range noteon {
+		if v {
+			wr.Write(channel.Channel0.NoteOff(uint8(i)))
 		}
 	}
 	return nil
@@ -178,6 +198,7 @@ func sub(wav []float64, t int) error {
 
 func main() {
 	fn := flag.String("f", "", "filename (.s16)")
+	smf := flag.String("m", "output.mid", "filename (.mid)")
 	flag.Parse()
 	fp, err := os.Open(*fn)
 	if err != nil {
@@ -185,6 +206,13 @@ func main() {
 		return
 	}
 	defer fp.Close()
+	smffp, err := os.Create(*smf)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer smffp.Close()
+	wr := smfwriter.New(smffp)
 	wavi := make([]byte, smpls*2)
 	wav := make([]float64, smpls)
 	shift := 1024
@@ -194,11 +222,12 @@ func main() {
 			err = readwav(fp, wavi, wav)
 		} else {
 			copy(wav[:smpls-shift], wav[shift:])
-			err = readwav(fp, wavi[:(smpls-shift)*2], wav[smpls-shift:])
+			err = readwav(fp, wavi[:shift*2], wav[smpls-shift:])
 		}
 		if err != nil {
 			break
 		}
-		sub(wav, i)
+		sub(wav, i, wr)
 	}
+	wr.Write(meta.EndOfTrack)
 }
