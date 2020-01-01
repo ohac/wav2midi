@@ -233,18 +233,17 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 			note := 40 + i
 			judge := false
 			if i <= 9 { // makigen (string 5 and 6)
-				judge = x2 > 0.70 && x3 > 0.11 && x4 > 0.008 && x5 > 0.004
+				judge = (x2+x3 > 0.70+0.11) && (x4+x5 > 0.008+0.0008)
 			} else if i < 14 { // makigen (string 4)
-				judge = x2 > 0.70 && x3 > 0.10 && x4 > 0.006 && x5 > 0.0003
+				judge = (x2+x3 > 0.70+0.10+0.1) && (x4 > 0.006 && x5 > 0.0003)
 			} else if i < 24 {
-				judge = x2 > 0.4 && x3 > 0.08 && x4 > 0.003
+				judge = (x2+x3 > 0.4+0.08+0.1) && x4 > 0.003
 			} else if i < 36 {
 				judge = x2 > 0.1 && x3 > 0.05 && x4 > 0.005
 			} else {
 				judge = x2 > 0.1 && x3 > 0.05
 			}
 			j2 := nojudge
-			//j2 = note == 50
 			if j2 || judge {
 				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB %5.3f %5.3f %5.3f %5.3f\n",
 					t, i, note, note2str(note), v, db, x2, x3, x4, x5)
