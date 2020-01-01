@@ -217,12 +217,12 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 		x3 := spct[i+12+7]
 		reduceharm(spct, i)
 		db := 20 * math.Log10(v)
-		if db > -53 {
+		if db > threshold {
 			x1 /= v
 			x2 /= v
 			x3 /= v
 			note := 40 + i
-			judge := false
+			judge := nojudge
 			if i <= 12 {
 				judge = x1 < 0.08 && x2 > 0.0005 && x3 > 0.005
 			} else if i <= 24 {
@@ -246,7 +246,7 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 				   }
 				   fmt.Printf("\n")
 				*/
-				vel := db*3.0 + 184
+				vel := db*velgain + veloffset
 				if vel > 0 {
 					if vel > 127 {
 						vel = 127
@@ -274,12 +274,30 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 	return delta, noteon, vels
 }
 
+var (
+	velgain   float64
+	veloffset float64
+	threshold float64
+	verbose   bool
+	nojudge   bool
+)
+
 func main() {
 	fn := flag.String("f", "", "filename (.s16)")
 	smfp := flag.String("m", "", "filename (.mid)")
 	gain := flag.Float64("g", 1.0, "gain")
 	smplfreqp := flag.Int("s", 44100, "sampling freq")
+	velg := flag.Float64("v", 3.0, "velocity gain")
+	velo := flag.Float64("o", 184, "velocity offset")
+	thr := flag.Float64("t", -53, "threshold (dB)")
+	verb := flag.Bool("V", false, "verbose")
+	nojudgep := flag.Bool("n", false, "no judge (for debug)")
 	flag.Parse()
+	velgain = *velg
+	veloffset = *velo
+	verbose = *verb
+	threshold = *thr
+	nojudge = *nojudgep
 	smplfreq = float64(*smplfreqp)
 	smf := *smfp
 	if smf == "" {
