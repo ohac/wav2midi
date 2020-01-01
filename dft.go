@@ -342,5 +342,14 @@ func main() {
 		lastnoteon = noteon
 		lastvels = vels
 	}
+	for i, v := range lastnoteon2 {
+		if v {
+			if delta > 0 {
+				wr.SetDelta(delta)
+				delta = 0
+			}
+			wr.Write(channel.Channel0.NoteOff(uint8(i)))
+		}
+	}
 	wr.Write(meta.EndOfTrack)
 }
