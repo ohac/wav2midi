@@ -126,7 +126,8 @@ func eq(i int) float64 {
 }
 
 func reduceharm(spct []float64, i int) {
-	muls := []float64{1.2, 0.8, 0.5, 0.4, 0.3, 0.2}
+	//muls := []float64{1.2, 0.8, 0.5, 0.4, 0.3, 0.2}
+	muls := []float64{0, 0.8, 0.5, 0.4, 0.3, 0.2}
 	for x, j := range []int{12, 12 + 7, 12 + 12, 12 + 12 + 4, 12 + 12 + 7,
 		12 * 3} {
 		k := i + j
@@ -152,41 +153,44 @@ func reducenear(spct []float64, i int) {
 	}
 }
 
-func guitar(spct []float64) {
-	max := 0.0
+func guitar(noteon []bool, vels []uint8) {
+	var max uint8
 	maxi := 0
 
 	// string 6: 0-4fret
-	for i := 0; i < 5; i++ {
-		v := spct[i]
+	for i := 7; i < 7+5; i++ {
+		v := vels[i]
 		if v > max {
 			max = v
 			maxi = i
 		}
 	}
-	for i := 0; i < 5; i++ {
+	for i := 7; i < 7+5; i++ {
 		if i != maxi {
-			spct[i] = 0
+			noteon[i] = false
+			vels[i] = 0
 		}
 	}
 
 	// string 1: 18-23fret
-	for i := 24 + 18; i < 24+24; i++ {
-		v := spct[i]
+	for i := 7 + 24 + 18; i < 7+24+24; i++ {
+		v := vels[i]
 		if v > max {
 			max = v
 			maxi = i
 		}
 	}
-	for i := 0; i < 5; i++ {
+	for i := 7 + 24 + 18; i < 7+24+24; i++ {
 		if i != maxi {
-			spct[i] = 0
+			noteon[i] = false
+			vels[i] = 0
 		}
 	}
 
-	for i := range spct[1:] {
-		if spct[i] < spct[i+1] {
-			spct[i] = 0
+	for i := range vels[1:] {
+		if vels[i] < vels[i+1] {
+			noteon[i] = false
+			vels[i] = 0
 		}
 	}
 }
@@ -204,48 +208,46 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 			spct[i] = v
 		}
 	*/
+	/* TODO
 	for i := range spct {
 		reducenear(spct, i)
 	}
-	guitar(spct)
+	*/
 	noteon := make([]bool, 128)
 	vels := make([]uint8, 128)
 	for i := 0; i < imax-imin-(12*2+7); i++ {
 		v := spct[i]
-		x1 := spct[i+7]
+		//x1 := spct[i+7]
 		x2 := spct[i+12]
 		x3 := spct[i+12+7]
-		reduceharm(spct, i)
+		x4 := spct[i+12+12]
+		x5 := spct[i+12+12+4]
+		// TODO
+		//reduceharm(spct, i)
 		db := 20 * math.Log10(v)
 		if db > threshold {
-			x1 /= v
 			x2 /= v
 			x3 /= v
+			x4 /= v
+			x5 /= v
 			note := 40 + i
-			judge := nojudge
-			if i <= 12 {
-				judge = x1 < 0.08 && x2 > 0.0005 && x3 > 0.005
-			} else if i <= 24 {
-				judge = x2 > 0.00001 || x3 > 0.00001
-			} else if i <= 36 {
-				judge = x2 > 0.000006 || x3 > 0.000006
+			judge := false
+			if i <= 9 { // makigen (string 5 and 6)
+				judge = x2 > 0.70 && x3 > 0.11 && x4 > 0.008 && x5 > 0.004
+			} else if i < 14 { // makigen (string 4)
+				judge = x2 > 0.70 && x3 > 0.10 && x4 > 0.006 && x5 > 0.0003
+			} else if i < 24 {
+				judge = x2 > 0.4 && x3 > 0.08 && x4 > 0.003
+			} else if i < 36 {
+				judge = x2 > 0.1 && x3 > 0.05 && x4 > 0.005
 			} else {
-				judge = x2 > 0.000005 || x3 > 0.000005
+				judge = x2 > 0.1 && x3 > 0.05
 			}
-			j2 := false
-			//j2 = note == 69 || note == 67
-			//j2 = note == 74
+			j2 := nojudge
+			//j2 = note == 50
 			if j2 || judge {
-				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB %5.3f %5.3f %5.3f\n",
-					t, i, note, note2str(note), v, db, x1, x2, x3)
-				/*
-				   fmt.Printf("%2d %2d %2d %4s %8.6f %6.2f dB ", t, i,
-				     note, note2str(note), v, db)
-				   for j := 0; j < (60+int(db))/2; j++ {
-				     fmt.Print("*")
-				   }
-				   fmt.Printf("\n")
-				*/
+				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB %5.3f %5.3f %5.3f %5.3f\n",
+					t, i, note, note2str(note), v, db, x2, x3, x4, x5)
 				vel := db*velgain + veloffset
 				if vel > 0 {
 					if vel > 127 {
@@ -257,6 +259,7 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 			}
 		}
 	}
+	guitar(noteon, vels)
 	/*
 		for i, v := range noteon {
 			if lastnoteon[i] != v {
