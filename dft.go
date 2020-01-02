@@ -191,6 +191,9 @@ func guitar(noteon []bool, vels []uint8) {
 		if vels[i] < vels[i+1] {
 			noteon[i] = false
 			vels[i] = 0
+		} else {
+			noteon[i+1] = false
+			vels[i+1] = 0
 		}
 	}
 }
@@ -225,28 +228,36 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 		// TODO
 		//reduceharm(spct, i)
 		db := 20 * math.Log10(v)
+		db2 := 20 * math.Log10(x2)
+		db3 := 20 * math.Log10(x3)
+		db4 := 20 * math.Log10(x4)
+		db5 := 20 * math.Log10(x5)
 		if db > threshold {
-			x2 /= v
-			x3 /= v
-			x4 /= v
-			x5 /= v
+			db2 = db - db2
+			db3 = db - db3
+			db4 = db - db4
+			db5 = db - db5
 			note := 40 + i
 			judge := false
-			if i <= 9 { // makigen (string 5 and 6)
-				judge = (x2+x3 > 0.70+0.11) && (x4+x5 > 0.008+0.0008)
-			} else if i < 14 { // makigen (string 4)
-				judge = (x2+x3 > 0.70+0.10+0.1) && (x4 > 0.006 && x5 > 0.0003)
-			} else if i < 24 {
-				judge = (x2+x3 > 0.4+0.08+0.1) && x4 > 0.003
-			} else if i < 36 {
-				judge = x2 > 0.1 && x3 > 0.05 && x4 > 0.005
-			} else {
-				judge = x2 > 0.1 && x3 > 0.05
+			pr := false
+			if i <= 9 { // makigen (string 5 and 6) 40-49
+				judge = db2 < 10.0 && db3 < 42.0 && db4 < 39.0 && db5 < 51.0
+			} else if i < 14 { // makigen (string 4) 50-53
+				judge = db2 < 24.0 && db3 < 52.0 && db4 < 44.0 && db5 < 54.0
+			} else if i < 24 { // 54-63
+				judge = db2 < 28.0 && db3 < 69.0 && db4 < 64.0 && db5 < 93.0
+			} else if i < 36 { // 64-75
+				judge = db2 < 34.0 && db3 < 62.0 && db4 < 73.0 && db5 < 98.0
+			} else { // 76-
+				judge = db2 < 34.0 && db3 < 62.0 && db4 < 73.0 && db5 < 98.0
+			}
+			if pr {
+				fmt.Printf(
+					"%2d %2d %2d %4s %7.5f %6.2f dB %7.1f %7.1f %7.1f %7.1f %v\n",
+					t, i, note, note2str(note), v, db, db2, db3, db4, db5, judge)
 			}
 			j2 := nojudge
 			if j2 || judge {
-				fmt.Printf("%2d %2d %2d %4s %7.5f %6.2f dB %5.3f %5.3f %5.3f %5.3f\n",
-					t, i, note, note2str(note), v, db, x2, x3, x4, x5)
 				vel := db*velgain + veloffset
 				if vel > 0 {
 					if vel > 127 {
