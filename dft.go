@@ -64,6 +64,7 @@ func readwav(fp io.Reader, wavi []byte, wav []float64, gain float64) error {
 	return nil
 }
 
+/*
 func eq(i int) float64 {
 	switch {
 	case i == 0:
@@ -124,7 +125,9 @@ func eq(i int) float64 {
 		return 1.0
 	}
 }
+*/
 
+/*
 func reduceharm(spct []float64, i int) {
 	//muls := []float64{1.2, 0.8, 0.5, 0.4, 0.3, 0.2}
 	muls := []float64{0, 0.8, 0.5, 0.4, 0.3, 0.2}
@@ -139,7 +142,9 @@ func reduceharm(spct []float64, i int) {
 		}
 	}
 }
+*/
 
+/*
 func reducenear(spct []float64, i int) {
 	gain := []float64{0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.2, 0.1, 0.05, 0.03}
 	for x, j := range []int{-5, -4, -3, -2, -1, 1, 2, 3, 4, 5} {
@@ -152,6 +157,7 @@ func reducenear(spct []float64, i int) {
 		}
 	}
 }
+*/
 
 func guitar(noteon []bool, vels []uint8) {
 	var max uint8
@@ -191,7 +197,7 @@ func guitar(noteon []bool, vels []uint8) {
 		if vels[i] < vels[i+1] {
 			noteon[i] = false
 			vels[i] = 0
-		} else {
+		} else if vels[i] > vels[i+1] {
 			noteon[i+1] = false
 			vels[i+1] = 0
 		}
@@ -241,9 +247,11 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 			judge := false
 			pr := false
 			if i <= 9 { // makigen (string 5 and 6) 40-49
-				judge = db2 < 10.0 && db3 < 42.0 && db4 < 39.0 && db5 < 51.0
+				pr = true
+				judge = db2 < 32.0 && db3 < 42.0 && db4 < 50.0 && db5 < 60.0
 			} else if i < 14 { // makigen (string 4) 50-53
-				judge = db2 < 24.0 && db3 < 52.0 && db4 < 44.0 && db5 < 54.0
+				pr = true
+				judge = db2 < 24.0 && db3 < 52.0 && db4 < 44.0 && db5 < 75.0
 			} else if i < 24 { // 54-63
 				judge = db2 < 28.0 && db3 < 69.0 && db4 < 64.0 && db5 < 93.0
 			} else if i < 36 { // 64-75
@@ -352,7 +360,23 @@ func main() {
 		delta, noteon, vels = sub(wav, i, delta+delta2)
 		for i, v := range lastnoteon {
 			if v {
-				if lastnoteon2[i] != v && v == noteon[i] {
+				// check 8th, 8+5th, 8+8th
+				harm := false
+				if i >= 12 {
+					//harm = lastnoteon[i - 12] && lastvels[i - 12] > lastvels[i]
+					harm = lastnoteon[i-12]
+				}
+				if !harm && i >= 12+7 {
+					harm = lastnoteon[i-(12+7)]
+				}
+				if !harm && i >= 12+12 {
+					harm = lastnoteon[i-(12+12)]
+				}
+				if !harm && i >= 12+12+4 {
+					harm = lastnoteon[i-(12+12+4)]
+				}
+				//harm = false // TODO
+				if !harm && lastnoteon2[i] != v && v == noteon[i] {
 					if delta > 0 {
 						wr.SetDelta(delta)
 						delta = 0
