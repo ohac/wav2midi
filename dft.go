@@ -28,7 +28,7 @@ func note2str(note int) string {
 var basehz = 440.0 / 8 // 55hz
 var tw = 1.05946309    // 12sqrt(2)
 var imin = 7           // E2
-var imax = 7 + 12*6
+var imax = 7 + 12*7
 var smplfreq = 44100.0
 var smpls = 1024 * 8
 
@@ -179,6 +179,8 @@ func guitar(noteon []bool, vels []uint8) {
 	}
 
 	// string 1: 18-23fret
+	max = 0
+	maxi = 0
 	for i := 7 + 24 + 18; i < 7+24+24; i++ {
 		v := vels[i]
 		if v > max {
@@ -224,7 +226,7 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 	*/
 	noteon := make([]bool, 128)
 	vels := make([]uint8, 128)
-	for i := 0; i < imax-imin-(12*2+7); i++ {
+	for i := 0; i < imax-imin-(12*2+4); i++ {
 		v := spct[i]
 		//x1 := spct[i+7]
 		x2 := spct[i+12]
@@ -247,17 +249,15 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 			judge := false
 			pr := false
 			if i <= 9 { // makigen (string 5 and 6) 40-49
-				pr = true
 				judge = db2 < 32.0 && db3 < 42.0 && db4 < 50.0 && db5 < 60.0
 			} else if i < 14 { // makigen (string 4) 50-53
-				pr = true
 				judge = db2 < 24.0 && db3 < 52.0 && db4 < 44.0 && db5 < 75.0
 			} else if i < 24 { // 54-63
 				judge = db2 < 28.0 && db3 < 69.0 && db4 < 64.0 && db5 < 93.0
 			} else if i < 36 { // 64-75
-				judge = db2 < 34.0 && db3 < 62.0 && db4 < 73.0 && db5 < 98.0
+				judge = db2 < 58.0 && db3 < 73.0 && db4 < 89.0 && db5 < 112.0
 			} else { // 76-
-				judge = db2 < 34.0 && db3 < 62.0 && db4 < 73.0 && db5 < 98.0
+				judge = db2 < 58.0 && db3 < 82.0 && db4 < 87.0 && db5 < 102.0
 			}
 			if pr {
 				fmt.Printf(
@@ -360,22 +360,21 @@ func main() {
 		delta, noteon, vels = sub(wav, i, delta+delta2)
 		for i, v := range lastnoteon {
 			if v {
-				// check 8th, 8+5th, 8+8th
+				// check 8th, 8+5th, 8+8th, 8+8+3rd
 				harm := false
-				if i >= 12 {
-					//harm = lastnoteon[i - 12] && lastvels[i - 12] > lastvels[i]
+				lastvel := lastvels[i] + 10
+				if i >= 12 && lastvels[i-12] > lastvel {
 					harm = lastnoteon[i-12]
 				}
-				if !harm && i >= 12+7 {
+				if !harm && i >= 12+7 && lastvels[i-(12+7)] > lastvel {
 					harm = lastnoteon[i-(12+7)]
 				}
-				if !harm && i >= 12+12 {
+				if !harm && i >= 12+12 && lastvels[i-(12+12)] > lastvel {
 					harm = lastnoteon[i-(12+12)]
 				}
-				if !harm && i >= 12+12+4 {
+				if !harm && i >= 12+12+4 && lastvels[i-(12+12+4)] > lastvel {
 					harm = lastnoteon[i-(12+12+4)]
 				}
-				//harm = false // TODO
 				if !harm && lastnoteon2[i] != v && v == noteon[i] {
 					if delta > 0 {
 						wr.SetDelta(delta)
