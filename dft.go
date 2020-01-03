@@ -358,37 +358,47 @@ func main() {
 			break
 		}
 		delta, noteon, vels = sub(wav, i, delta+delta2)
-		for i, v := range lastnoteon {
+		for j, v := range lastnoteon {
 			if v {
 				// check 8th, 8+5th, 8+8th, 8+8+3rd
 				harm := false
-				lastvel := lastvels[i] + 10
-				if i >= 12 && lastvels[i-12] > lastvel {
-					harm = lastnoteon[i-12]
+				vel := int(vels[j]) + 10
+				if j >= 12 {
+					if j-12 <= 45 {
+						harm = noteon[j-12] && vels[j-12] > 0 &&
+							int(vels[j-12])+30 > int(vels[j])
+					} else if j-12 <= 55 {
+						harm = noteon[j-12] && vels[j-12] > 0 &&
+							int(vels[j-12])+20 > int(vels[j])
+					} else if j-12 <= 65 {
+						harm = noteon[j-12] && int(vels[j-12])+10 > int(vels[j])
+					} else if int(vels[j-12]) > vel {
+						harm = noteon[j-12]
+					}
 				}
-				if !harm && i >= 12+7 && lastvels[i-(12+7)] > lastvel {
-					harm = lastnoteon[i-(12+7)]
+				if !harm && j >= 12+7 && int(vels[j-(12+7)]) > vel {
+					harm = noteon[j-(12+7)]
 				}
-				if !harm && i >= 12+12 && lastvels[i-(12+12)] > lastvel {
-					harm = lastnoteon[i-(12+12)]
+				if !harm && j >= 12+12 && int(vels[j-(12+12)]) > vel {
+					harm = noteon[j-(12+12)]
 				}
-				if !harm && i >= 12+12+4 && lastvels[i-(12+12+4)] > lastvel {
-					harm = lastnoteon[i-(12+12+4)]
+				if !harm && j >= 12+12+4 && int(vels[j-(12+12+4)]) > vel {
+					harm = noteon[j-(12+12+4)]
 				}
-				if !harm && lastnoteon2[i] != v && v == noteon[i] {
+				if !harm && lastnoteon2[j] != v && v == noteon[j] {
 					if delta > 0 {
 						wr.SetDelta(delta)
 						delta = 0
 					}
-					wr.Write(channel.Channel0.NoteOn(uint8(i), lastvels[i]))
+					wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
 				}
 			} else {
-				if lastnoteon2[i] != v {
+				if lastnoteon2[j] != v {
 					if delta > 0 {
 						wr.SetDelta(delta)
 						delta = 0
 					}
-					wr.Write(channel.Channel0.NoteOff(uint8(i)))
+					wr.Write(channel.Channel0.NoteOff(uint8(j)))
 				}
 			}
 		}
