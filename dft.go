@@ -236,6 +236,7 @@ func main() {
 		}
 		delta, noteon, vels = sub(wav, i, delta+delta2)
 		nstr := 0
+		bottom := 0
 		for j, v := range lastnoteon {
 			if v && nstr < 6 {
 				// check 8th, 8+5th, 8+8th, 8+8+3rd
@@ -264,9 +265,17 @@ func main() {
 					harm = noteon[j-(12+12+4)]
 				}
 				if !harm {
+					// E,A,D,G
+					if bottom == 0 && j != 40 && j != 45 && j != 50 && j != 55 {
+						bottom = j
+					} else if j-bottom > 12*2+5 {
+						harm = true
+					}
+				}
+				if !harm {
 					nstr++
 					if lastnoteon2[j] && noteon[j] &&
-						int(lastvels[j])+10 < int(vels[j]) {
+						int(lastvels[j])+20 < int(vels[j]) {
 						if delta > 0 {
 							wr.SetDelta(delta)
 							delta = 0
