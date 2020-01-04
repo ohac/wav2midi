@@ -262,12 +262,22 @@ func main() {
 				if !harm && j >= 12+12+4 && int(vels[j-(12+12+4)]) > vel {
 					harm = noteon[j-(12+12+4)]
 				}
-				if !harm && lastnoteon2[j] != v && v == noteon[j] {
-					if delta > 0 {
-						wr.SetDelta(delta)
-						delta = 0
+				if !harm {
+					if lastnoteon2[j] && noteon[j] &&
+						int(lastvels[j])+2 < int(vels[j]) {
+						if delta > 0 {
+							wr.SetDelta(delta)
+							delta = 0
+						}
+						wr.Write(channel.Channel0.NoteOff(uint8(j)))
+						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
+					} else if lastnoteon2[j] != v && v == noteon[j] {
+						if delta > 0 {
+							wr.SetDelta(delta)
+							delta = 0
+						}
+						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
 					}
-					wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
 				}
 			} else {
 				if lastnoteon2[j] != v {
