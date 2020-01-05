@@ -190,12 +190,15 @@ func main() {
 	thr := flag.Float64("t", -53, "threshold (dB)")
 	verb := flag.Bool("V", false, "verbose")
 	nojudgep := flag.Bool("n", false, "no judge (for debug)")
+	shiftp := flag.Int("S", 441*2, "shift width (samples)")
+	windowp := flag.Int("w", 441*8, "window size (samples)")
 	flag.Parse()
 	velgain = *velg
 	veloffset = *velo
 	verbose = *verb
 	threshold = *thr
 	nojudge = *nojudgep
+	smpls = *windowp
 	smplfreq = float64(*smplfreqp)
 	smf := *smfp
 	if smf == "" {
@@ -216,7 +219,7 @@ func main() {
 	wr := smfwriter.New(smffp)
 	wavi := make([]byte, smpls*2)
 	wav := make([]float64, smpls)
-	shift := 1024 * 4
+	shift := *shiftp
 	lastnoteon2 := make([]bool, 128)
 	lastnoteon := make([]bool, 128)
 	var noteon []bool
