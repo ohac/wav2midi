@@ -25,12 +25,20 @@ func note2str(note int) string {
 	return strtbl[note] + strconv.Itoa(oct)
 }
 
-var basehz = 440.0 / 8 // 55hz
-var tw = 1.05946309    // 12sqrt(2)
-var imin = 7           // E2
-var imax = 7 + 12*7
-var smplfreq = 44100.0
-var smpls = 1024 * 8
+var (
+	basehz    float64 = 440.0 / 8  // 55hz
+	tw        float64 = 1.05946309 // 12sqrt(2)
+	imin      int     = 7          // E2
+	imax      int     = 7 + 12*7
+	smplfreq  float64 = 44100.0
+	smpls     int     = 1024 * 8
+	velgain   float64
+	veloffset float64
+	threshold float64
+	verbose   bool
+	nojudge   bool
+	poly      int = 6
+)
 
 func dft(wav []float64) []float64 {
 	spct := make([]float64, imax-imin)
@@ -172,14 +180,6 @@ func sub(wav []float64, t int) ([]bool, []uint8) {
 	return noteon, vels
 }
 
-var (
-	velgain   float64
-	veloffset float64
-	threshold float64
-	verbose   bool
-	nojudge   bool
-)
-
 func main() {
 	fn := flag.String("f", "", "filename (.s16)")
 	smfp := flag.String("m", "", "filename (.mid)")
@@ -192,6 +192,7 @@ func main() {
 	nojudgep := flag.Bool("n", false, "no judge (for debug)")
 	shiftp := flag.Int("S", 441*2, "shift width (samples)")
 	windowp := flag.Int("w", 441*8, "window size (samples)")
+	polyp := flag.Int("p", 6, "poly")
 	flag.Parse()
 	velgain = *velg
 	veloffset = *velo
@@ -199,6 +200,7 @@ func main() {
 	threshold = *thr
 	nojudge = *nojudgep
 	smpls = *windowp
+	poly = *polyp
 	smplfreq = float64(*smplfreqp)
 	smf := *smfp
 	if smf == "" {
@@ -242,7 +244,7 @@ func main() {
 		nstr := 0
 		bottom := 0
 		for j, v := range lastnoteon {
-			if v && nstr < 6 {
+			if v && nstr < poly {
 				// check 8th, 8+5th, 8+8th, 8+8+3rd
 				harm := false
 				vel := int(vels[j]) + 10
@@ -295,7 +297,7 @@ func main() {
 					}
 				}
 			} else {
-				if nstr >= 6 || lastnoteon2[j] != v {
+				if nstr >= poly || lastnoteon2[j] != v {
 					if delta > 0 {
 						wr.SetDelta(uint32(delta))
 						delta = 0
