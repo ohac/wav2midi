@@ -111,7 +111,7 @@ func guitar(noteon []bool, vels []uint8) {
 	}
 }
 
-func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
+func sub(wav []float64, t int) ([]bool, []uint8) {
 	wav2 := make([]float64, smpls)
 	for i := 0; i < smpls; i++ {
 		wav2[i] = wav[i]
@@ -169,7 +169,7 @@ func sub(wav []float64, t int, delta uint32) (uint32, []bool, []uint8) {
 		}
 	}
 	guitar(noteon, vels)
-	return delta, noteon, vels
+	return noteon, vels
 }
 
 var (
@@ -224,8 +224,8 @@ func main() {
 	lastnoteon := make([]bool, 128)
 	var noteon []bool
 	var vels, lastvels []uint8
-	delta := uint32(0)
-	delta2 := uint32(float64(shift) / smplfreq * 480 * 4)
+	delta := 0.0
+	delta2 := float64(shift) / smplfreq * 480 * 4
 	for i := 0; ; i++ {
 		var err error
 		if i == 0 {
@@ -237,7 +237,8 @@ func main() {
 		if err != nil {
 			break
 		}
-		delta, noteon, vels = sub(wav, i, delta+delta2)
+		noteon, vels = sub(wav, i)
+		delta += delta2
 		nstr := 0
 		bottom := 0
 		for j, v := range lastnoteon {
@@ -280,14 +281,14 @@ func main() {
 					if lastnoteon2[j] && noteon[j] &&
 						int(lastvels[j])+20 < int(vels[j]) {
 						if delta > 0 {
-							wr.SetDelta(delta)
+							wr.SetDelta(uint32(delta))
 							delta = 0
 						}
 						wr.Write(channel.Channel0.NoteOff(uint8(j)))
 						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
 					} else if lastnoteon2[j] != v && v == noteon[j] {
 						if delta > 0 {
-							wr.SetDelta(delta)
+							wr.SetDelta(uint32(delta))
 							delta = 0
 						}
 						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
@@ -296,7 +297,7 @@ func main() {
 			} else {
 				if nstr >= 6 || lastnoteon2[j] != v {
 					if delta > 0 {
-						wr.SetDelta(delta)
+						wr.SetDelta(uint32(delta))
 						delta = 0
 					}
 					wr.Write(channel.Channel0.NoteOff(uint8(j)))
@@ -310,7 +311,7 @@ func main() {
 	for i, v := range lastnoteon2 {
 		if v {
 			if delta > 0 {
-				wr.SetDelta(delta)
+				wr.SetDelta(uint32(delta))
 				delta = 0
 			}
 			wr.Write(channel.Channel0.NoteOff(uint8(i)))
