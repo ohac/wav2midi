@@ -107,7 +107,29 @@ func guitar(noteon []bool, vels []uint8) {
 			vels[i] = 0
 		}
 	}
+}
 
+func bassguitar(noteon []bool, vels []uint8) {
+	var max uint8
+	maxi := 0
+
+	// string 4: 0-4fret
+	for i := 7; i < 7+5; i++ {
+		v := vels[i]
+		if v > max {
+			max = v
+			maxi = i
+		}
+	}
+	for i := 7; i < 7+5; i++ {
+		if i != maxi {
+			noteon[i] = false
+			vels[i] = 0
+		}
+	}
+}
+
+func avoidnotes(noteon []bool, vels []uint8) {
 	for i := range vels[1:] {
 		if vels[i] < vels[i+1] {
 			noteon[i] = false
@@ -176,7 +198,6 @@ func sub(wav []float64, t int) ([]bool, []uint8) {
 			}
 		}
 	}
-	guitar(noteon, vels)
 	return noteon, vels
 }
 
@@ -193,6 +214,10 @@ func main() {
 	shiftp := flag.Int("S", 441*2, "shift width (samples)")
 	windowp := flag.Int("w", 441*8, "window size (samples)")
 	polyp := flag.Int("p", 6, "poly")
+	basefreqp := flag.Float64("b", 440, "base frequency")
+	divp := flag.Float64("d", 8, "div guitar: 8, bass: 16")
+	iminp := flag.Int("L", 7, "low: 7 = E")
+	imaxp := flag.Int("H", 7+12*7, "high + harmonics")
 	flag.Parse()
 	velgain = *velg
 	veloffset = *velo
@@ -201,6 +226,13 @@ func main() {
 	nojudge = *nojudgep
 	smpls = *windowp
 	poly = *polyp
+	imin = *iminp
+	imax = *imaxp
+	basehz = *basefreqp / *divp
+	bassmode := false
+	if *divp == 16 {
+		bassmode = true
+	}
 	smplfreq = float64(*smplfreqp)
 	smf := *smfp
 	if smf == "" {
@@ -240,10 +272,20 @@ func main() {
 			break
 		}
 		noteon, vels = sub(wav, i)
+		if !bassmode {
+			guitar(noteon, vels)
+		} else {
+			bassguitar(noteon, vels)
+		}
+		avoidnotes(noteon, vels)
 		delta += delta2
 		nstr := 0
 		bottom := 0
 		for j, v := range lastnoteon {
+			k := j
+			if bassmode {
+				k -= 12
+			}
 			if v && nstr < poly {
 				// check 8th, 8+5th, 8+8th, 8+8+3rd
 				harm := false
@@ -286,14 +328,14 @@ func main() {
 							wr.SetDelta(uint32(delta))
 							delta = 0
 						}
-						wr.Write(channel.Channel0.NoteOff(uint8(j)))
-						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
+						wr.Write(channel.Channel0.NoteOff(uint8(k)))
+						wr.Write(channel.Channel0.NoteOn(uint8(k), lastvels[j]))
 					} else if lastnoteon2[j] != v && v == noteon[j] {
 						if delta > 0 {
 							wr.SetDelta(uint32(delta))
 							delta = 0
 						}
-						wr.Write(channel.Channel0.NoteOn(uint8(j), lastvels[j]))
+						wr.Write(channel.Channel0.NoteOn(uint8(k), lastvels[j]))
 					}
 				}
 			} else {
@@ -302,7 +344,7 @@ func main() {
 						wr.SetDelta(uint32(delta))
 						delta = 0
 					}
-					wr.Write(channel.Channel0.NoteOff(uint8(j)))
+					wr.Write(channel.Channel0.NoteOff(uint8(k)))
 				}
 			}
 		}
@@ -312,11 +354,15 @@ func main() {
 	}
 	for i, v := range lastnoteon2 {
 		if v {
+			k := i
+			if bassmode {
+				k -= 12
+			}
 			if delta > 0 {
 				wr.SetDelta(uint32(delta))
 				delta = 0
 			}
-			wr.Write(channel.Channel0.NoteOff(uint8(i)))
+			wr.Write(channel.Channel0.NoteOff(uint8(k)))
 		}
 	}
 	wr.Write(meta.EndOfTrack)
